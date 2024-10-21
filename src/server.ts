@@ -7,14 +7,19 @@ import mongoose from 'mongoose';
 import morgan from 'morgan';
 import routes from './routes';
 import type { TServerConfig } from './types';
+import TelegramServiceService from './services/openai.service';
+import CoordinatorServiceClass from './services/coordinator.service';
 
 export class InitServer {
     server: Express;
     database: typeof mongoose;
+    bot: any;
+    coordinator: CoordinatorServiceClass;
 
     constructor() {
         this.server = express();
         this.database = mongoose;
+        this.coordinator = new CoordinatorServiceClass();
     }
 
     setup(config: TServerConfig) {
@@ -23,6 +28,7 @@ export class InitServer {
         this.server.set('port', config.port);
         this.server.set('db_url', config.db_url);
         this.server.set('log_level', config.log_level);
+        this.server.set('bot', TelegramServiceService);
 
         // Setup middlewares
         this.server.use(cors());
@@ -39,6 +45,7 @@ export class InitServer {
         this.server.use((req: Request, res: Response, next: NextFunction) => {
             next(createError(404));
         });
+
     }
 
     async start() {
@@ -47,6 +54,7 @@ export class InitServer {
 
         try {
             await this.database.connect(process.env.DB_URL!);
+            this.coordinator.start();
             this.server.listen(port, () => console.log(`[server]: server is running at ${host}:${port}`));
         } catch (error) {
             console.error(error);
