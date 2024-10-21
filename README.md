@@ -1,6 +1,7 @@
 # SenteAI
 
 #### Use in Telegram: @sente_ai_tasks_a1_b_bot
+#### https://t.me/sente_ai_tasks_a1_b_bot
 
 ## Event scheduler and general logger.
 
