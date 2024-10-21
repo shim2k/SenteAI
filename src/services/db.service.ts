@@ -35,6 +35,21 @@ class DBServiceClass {
         return reminder;
     }
 
+    // Update a reminder by reminderId
+    async updateReminderByReminderId(
+        userId: number,
+        reminderId: string,
+        updateData: Partial<IReminder>
+    ): Promise<IReminder | null> {
+        const updatedReminder = await ReminderModel.findOneAndUpdate(
+            { userId, reminderId },
+            updateData,
+            { new: true }
+        ).exec();
+
+        return updatedReminder;
+    }
+
     // Cancel a reminder by reminderId
     async cancelReminderByReminderId(userId: number, reminderId: string): Promise<boolean> {
         const result = await ReminderModel.deleteOne({ userId, reminderId });

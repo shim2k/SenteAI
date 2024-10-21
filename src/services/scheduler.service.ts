@@ -46,6 +46,19 @@ class SchedulerServiceClass {
     this.scheduleReminder(reminder);
   }
 
+  // Update a scheduled reminder
+  async updateScheduledReminder(reminder: IReminder) {
+    // First, cancel the existing scheduled job if it exists
+    const existingJob = this.scheduledJobs.get(reminder.reminderId);
+    if (existingJob) {
+      existingJob.cancel();
+      this.scheduledJobs.delete(reminder.reminderId);
+    }
+
+    // Schedule the updated reminder
+    this.scheduleReminder(reminder);
+  }
+
   // Cancel a reminder by reminderId
   async cancelReminderByReminderId(userId: number, reminderId: string) {
     const job = this.scheduledJobs.get(reminderId);

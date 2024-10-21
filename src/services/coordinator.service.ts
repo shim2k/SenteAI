@@ -66,21 +66,12 @@ class CoordinatorServiceClass {
 
         const response = await this.llm.sendMessage(conversationMessages);
 
-        // console.log('----------')
-        // console.log(username);
-        // console.log(response);
-        // console.log('----------')
-
-        console.log('----------')
-        console.log('----------')
-        console.log('----------')
-        const parseMessage = response.split('------ message content ------')[1].trim();
-        const parseInternalMessage = response.split('------ internal message ------')?.[1].trim()?.split('------ internal message end ------')?.[0]?.split('\n')?.[0];
-        console.log('parseInternalMessage: ', parseInternalMessage);
-        console.log('parseMessage: ', parseMessage);
-        console.log('----------')
-        console.log('----------')
-        console.log('----------')
+        console.log('------------------------------------------------------------------------------------------------------------------------')
+        console.log(username);
+        console.log(response);
+        // const parseMessage = response.split('------ message content ------')[1].trim();
+        // const parseInternalMessage = response.split('------ internal message ------')?.[1].trim()?.split('------ internal message end ------')?.[0]?.split('\n')?.[0];
+        console.log('------------------------------------------------------------------------------------------------------------------------')
 
         if (response) {
             // Save assistant's response to the database
@@ -119,19 +110,80 @@ class CoordinatorServiceClass {
                     return;
                 } else if (internalMessage.startsWith('CANCEL')) {
                     // Handle cancellation
-                    const cancelMatch = internalMessage.match(/^CANCEL\s+(.*)$/);
-                    if (cancelMatch) {
-                        const reminderText = cancelMatch[1].trim();
-                        if (reminderText) {
-                            const reminderId = generateReminderId(reminderText);
-                            // Cancel the reminder
-                            this.scheduler.cancelReminderByReminderId(userId, reminderId);
-                            console.log(`Reminder cancelled: ${reminderId}`);
-                        } else {
-                            console.error('No reminderText provided after CANCEL in internal message.');
+                    // ... existing cancellation code ...
+                } else if (internalMessage.startsWith('UPDATE_REMINDER')) {
+                    // Handle reminder update
+                    const updateMatch = internalMessage.match(
+                        /UPDATE_REMINDER:\s*(.*?),\s*(.*?),\s*(.*)/i
+                    );
+                    if (updateMatch) {
+                        const reminderText = updateMatch[1].trim();
+                        const newTimeToNotifyStr = updateMatch[2].trim();
+                        const newNotificationText = updateMatch[3].trim();
+
+                        // Validate that all parts are present
+                        if (!reminderText || !newTimeToNotifyStr || !newNotificationText) {
+                            console.error('Reminder update details are incomplete:', {
+                                reminderText,
+                                newTimeToNotifyStr,
+                                newNotificationText,
+                            });
+                            return;
                         }
+
+                        // Validate the time format
+                        const timeFormatRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                        if (!timeFormatRegex.test(newTimeToNotifyStr)) {
+                            console.error(
+                                'New time to notify does not match the expected format:',
+                                newTimeToNotifyStr
+                            );
+                            return;
+                        }
+
+                        // Parse the new time to notify
+                        const newTimeToNotify = new Date(newTimeToNotifyStr);
+
+                        if (isNaN(newTimeToNotify.getTime())) {
+                            console.error('Invalid new time format in reminder update:', newTimeToNotifyStr);
+                            return;
+                        }
+
+                        // Generate reminderId from reminderText
+                        const reminderId = generateReminderId(reminderText);
+
+                        // Update the reminder in the database
+                        this.db
+                            .updateReminderByReminderId(userId, reminderId, {
+                                timeToNotify: newTimeToNotify,
+                                notificationText: newNotificationText,
+                            })
+                            .then((updatedReminder) => {
+                                if (updatedReminder) {
+                                    // Update the scheduled job
+                                    this.scheduler.updateScheduledReminder(updatedReminder);
+                                    console.log('Reminder updated:', {
+                                        userId,
+                                        chatId,
+                                        reminderId,
+                                        reminderText,
+                                        newTimeToNotify,
+                                        newNotificationText,
+                                    });
+                                } else {
+                                    console.error(
+                                        `No reminder found to update with reminderId: ${reminderId} for userId: ${userId}`
+                                    );
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error updating reminder:', error);
+                            });
                     } else {
-                        console.error('Failed to parse CANCEL command in internal message.');
+                        console.error(
+                            'Failed to parse reminder update details from internal message:',
+                            internalMessage
+                        );
                     }
                 } else {
                     // Handle new reminder
