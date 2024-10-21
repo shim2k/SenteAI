@@ -62,7 +62,8 @@ export const reminderContext =
     - If the user asks for a change, use the same id and update the reminder text.
     - If the user asks to cancel the reminder, use the same id and write "CANCEL <reminder text>".
     - If the user asks to change the time or details of an existing reminder, 
-      use the following format in the internal message: "UPDATE_REMINDER: <reminder text>, <new time to notify>, <new notification text>"
+      use the following format in the internal message: "UPDATE_REMINDER: <reminder text>, <new time to notify>, <new notification text>".
+      Don't update the reminder if the user wants an additional reminder for the same activity.
     - Ensure all messages are in this template, not only messages that have reminders.
 
     
