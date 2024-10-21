@@ -2,6 +2,7 @@ import schedule, { Job } from 'node-schedule';
 import { Bot } from 'grammy';
 import DBServiceClass from './db.service';
 import { IReminder } from '../models/reminder.model';
+import logger from '../utils/logger';
 
 class SchedulerServiceClass {
   private scheduledJobs: Map<string, Job>;
@@ -69,9 +70,9 @@ class SchedulerServiceClass {
 
     const success = await this.dbService.cancelReminderByReminderId(userId, reminderId);
     if (success) {
-      console.log(`Cancelled reminder: ${reminderId}`);
+      logger.info(`Cancelled reminder: ${reminderId}`);
     } else {
-      console.log(`No reminder found with reminderId: ${reminderId} for userId: ${userId}`);
+      logger.info(`No reminder found with reminderId: ${reminderId} for userId: ${userId}`);
     }
   }
 }

@@ -53,6 +53,8 @@ export const reminderContext =
     <text to user>
 
     about the template: 
+    - Generate a unique id for each reminder, and use it in the reminder text. For updates and cancellations, use the same id.
+      For example: REMINDER: Wake up a435gfd, 2024-10-22 08:40:00, It's time to wake up!
     - If you are not sure when to remind the user, guess a time that makes sense to you and make it the format above. 
     - If you are still not sure, ask for a specific time
     - The <notification text> should be concise but engaging and motivating if relevant, 

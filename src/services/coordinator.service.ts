@@ -6,6 +6,7 @@ import DBServiceClass from './db.service';
 import { IMessage } from '../models/message.model';
 import SchedulerServiceClass from './scheduler.service';
 import { generateReminderId } from '../utils';
+import logger from '../utils/logger';
 
 class CoordinatorServiceClass {
     chat: TelegramServiceClass;
@@ -23,6 +24,9 @@ class CoordinatorServiceClass {
     }
 
     handleMessage = async (ctx: any) => {
+        logger.info('------------------------------------------------------------------------------------------------------------------------')
+        logger.info('------------------------------------------------------------------------------------------------------------------------')
+        logger.info('------------------------------------------------------------------------------------------------------------------------')
         const userId = ctx.message.from.id;
         const chatId = ctx.chat.id;
         const username = ctx.message.from.first_name || ctx.message.from.username || 'Unknown';
@@ -66,12 +70,10 @@ class CoordinatorServiceClass {
 
         const response = await this.llm.sendMessage(conversationMessages);
 
-        console.log('------------------------------------------------------------------------------------------------------------------------')
-        console.log(username);
-        console.log(response);
+        logger.info(username);
+        logger.info(response);
         // const parseMessage = response.split('------ message content ------')[1].trim();
         // const parseInternalMessage = response.split('------ internal message ------')?.[1].trim()?.split('------ internal message end ------')?.[0]?.split('\n')?.[0];
-        console.log('------------------------------------------------------------------------------------------------------------------------')
 
         if (response) {
             // Save assistant's response to the database
@@ -92,6 +94,9 @@ class CoordinatorServiceClass {
             // Reply to the user with the assistant's message content
             const userMessage = this.extractUserMessage(response);
             ctx.reply(userMessage);
+            logger.info('------------------------------------------------------------------------------------------------------------------------')
+            logger.info('------------------------------------------------------------------------------------------------------------------------')
+            logger.info('------------------------------------------------------------------------------------------------------------------------')
         }
     };
 
@@ -162,7 +167,7 @@ class CoordinatorServiceClass {
                                 if (updatedReminder) {
                                     // Update the scheduled job
                                     this.scheduler.updateScheduledReminder(updatedReminder);
-                                    console.log('Reminder updated:', {
+                                    logger.info('Reminder updated:', {
                                         userId,
                                         chatId,
                                         reminderId,
@@ -232,7 +237,7 @@ class CoordinatorServiceClass {
                             timeToNotify,
                         });
 
-                        console.log('Reminder scheduled:', {
+                        logger.info('Reminder scheduled:', {
                             userId,
                             chatId,
                             reminderId,
@@ -246,7 +251,7 @@ class CoordinatorServiceClass {
                 }
             }
         } else {
-            console.log('No internal message found in response.');
+            logger.info('No internal message found in response.');
         }
     }
 
@@ -261,7 +266,7 @@ class CoordinatorServiceClass {
 
 
     start = async () => {
-        console.log('Coordinator service started');
+        logger.info('Coordinator service started');
     };
 }
 
