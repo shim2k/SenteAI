@@ -1,8 +1,10 @@
-SenteAI
+# SenteAI
 
-Event scheduler and general logger.
+#### Use in Telegram: @sente_ai_tasks_a1_b_bot
 
-Event Reminders:
+## Event scheduler and general logger.
+
+### Event Reminders:
 
 It will send you a message on Telegram at the scheduled time.
 
@@ -18,7 +20,7 @@ Example:
 (8:00 PM) - Sente: It's time for your tennis session!
 ```
 
-Logger:
+### Logger:
 
 It will remember your logs and aggregate them for you.
 
