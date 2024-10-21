@@ -1,6 +1,6 @@
 # SenteAI
 
-Event scheduler and general logger.
+## Event scheduler and general logger.
 
 Event Reminders:
 
