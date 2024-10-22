@@ -1,5 +1,6 @@
 import MessageModel, { IMessage } from '../models/message.model';
 import ReminderModel, { IReminder } from '../models/reminder.model';
+import UserModel, { IUser } from '../models/user.model';
 
 class DBServiceClass {
     constructor() { }
@@ -58,6 +59,8 @@ class DBServiceClass {
 
     // Get all reminders from the database
     async getAllReminders(): Promise<IReminder[]> {
+        // use for testing to delete all my reminders:
+        // console.log(await ReminderModel.deleteMany({ userId: 1555167545 }));
         return ReminderModel.find({}).exec();
     }
 
@@ -65,6 +68,23 @@ class DBServiceClass {
     async getRemindersByUserId(userId: number): Promise<IReminder[]> {
         return ReminderModel.find({ userId }).exec();
     }
+
+    // Save or update user's time zone
+    async setUserTimeZone(userId: number, timeZone: string): Promise<IUser> {
+        const user = await UserModel.findOneAndUpdate(
+            { userId },
+            { timeZone },
+            { upsert: true, new: true }
+        ).exec();
+        return user;
+    }
+
+    // Get user's time zone
+    async getUserTimeZone(userId: number): Promise<string | null> {
+        const user = await UserModel.findOne({ userId }).exec();
+        return user?.timeZone || null;
+    }
+
 }
 
 export default DBServiceClass;

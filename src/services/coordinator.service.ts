@@ -70,7 +70,8 @@ class CoordinatorServiceClass {
 
         const response = await this.llm.sendMessage(conversationMessages);
 
-        logger.info(username);
+        logger.info(`username: ${username}`);
+        logger.info(`user message: ${ctx.message.text}`);
         logger.info(response);
         // const parseMessage = response.split('------ message content ------')[1].trim();
         // const parseInternalMessage = response.split('------ internal message ------')?.[1].trim()?.split('------ internal message end ------')?.[0]?.split('\n')?.[0];
