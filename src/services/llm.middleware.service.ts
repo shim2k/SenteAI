@@ -1,7 +1,8 @@
 import OpenAIServiceClass from './openai.service';
 import logger from '../utils/logger';
+import { DateTime } from 'luxon';
 
-type MiddlewareOperation = 'location_to_timezone';
+type MiddlewareOperation = 'location_to_timezone' | 'sentiment_analysis' | 'language_detection' | 'text_summarization';
 
 interface MiddlewareConfig<InputType, OutputType> {
     systemPrompt: string;
@@ -23,7 +24,10 @@ class LLMMiddlewareService {
         this.middlewareConfigs.set('location_to_timezone', {
             systemPrompt: 'You are a helpful assistant that converts locations to timezones.',
             userPromptTemplate: (input: string) =>
-                `Given the following location: "${input}"\nPlease provide the most likely timezone for this location. Use the IANA timezone database format (e.g., "America/New_York", "Europe/London", "Asia/Tokyo"). If you're unsure or the location is ambiguous, provide your best guess and explain your reasoning.\nResponse format: <timezone>|<explanation>`,
+                `Given the following location: "${input}"
+Please provide the most likely IANA timezone for this location. Use the format "Continent/City" (e.g., "America/New_York", "Europe/London", "Asia/Tokyo").
+If unsure or ambiguous, provide your best guess and explain your reasoning.
+Response format: <timezone>|<explanation>`,
             parseResponse: (response: string) => {
                 const [timezone, explanation] = response.split('|');
                 return { timezone: timezone.trim(), explanation: explanation.trim() };
@@ -58,6 +62,11 @@ class LLMMiddlewareService {
         config: MiddlewareConfig<InputType, OutputType>
     ) {
         this.middlewareConfigs.set(operation, config);
+    }
+
+    // Additional method to validate timezone using Luxon
+    validateTimezone(timezone: string): boolean {
+        return DateTime.local().setZone(timezone).isValid;
     }
 }
 
