@@ -7,29 +7,53 @@ import { IMessage } from '../models/message.model';
 import SchedulerServiceClass from './scheduler.service';
 import { generateReminderId } from '../utils';
 import logger from '../utils/logger';
+import LLMMiddlewareService from './llm.middleware.service';
+import { Context, Conversation } from 'grammy';
+import { DateTime } from 'luxon';
 
 class CoordinatorServiceClass {
     chat: TelegramServiceClass;
     llm: OpenAIServiceClass;
     db: DBServiceClass;
     scheduler: SchedulerServiceClass;
+    llmMiddleware: LLMMiddlewareService;
     messagesCache: { [key: number]: { id: number; name: string; messages: IMessage[] } };
 
     constructor() {
         this.messagesCache = {};
         this.db = new DBServiceClass();
         this.llm = new OpenAIServiceClass();
+        this.llmMiddleware = new LLMMiddlewareService(this.llm);
         this.chat = new TelegramServiceClass(this.handleMessage);
         this.scheduler = new SchedulerServiceClass(this.chat.bot, this.db);
+
+        // Register conversation handler
+        this.registerConversations();
     }
 
-    handleMessage = async (ctx: any) => {
-        logger.info('------------------------------------------------------------------------------------------------------------------------')
-        logger.info('------------------------------------------------------------------------------------------------------------------------')
-        logger.info('------------------------------------------------------------------------------------------------------------------------')
-        const userId = ctx.message.from.id;
-        const chatId = ctx.chat.id;
-        const username = ctx.message.from.first_name || ctx.message.from.username || 'Unknown';
+    private registerConversations() {
+        this.chat.bot.use((ctx, next) => {
+            if (ctx.conversation.isActive) {
+                return next();
+            }
+            next();
+        });
+
+        this.chat.bot.use(Conversation.middleware());
+
+        this.chat.bot.conversation('setTimezoneConversation', this.setTimezoneConversation.bind(this));
+    }
+
+    handleMessage = async (ctx: Context) => {
+        logger.info('--- New Message Received ---');
+        const userId = ctx.from?.id;
+        const chatId = ctx.chat?.id;
+        const username = ctx.from?.first_name || ctx.from?.username || 'Unknown';
+
+        if (!userId) {
+            logger.warn('User ID not found.');
+            return;
+        }
 
         // Initialize user in cache if not present
         if (!this.messagesCache[userId]) {
@@ -43,8 +67,7 @@ class CoordinatorServiceClass {
         }
 
         const date = `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-
-        const messageText = `The datetime is ${date}. ${ctx.message.text}`;
+        const messageText = `The datetime is ${date}. ${ctx.message?.text}`;
 
         // Save user's message to the database
         await this.db.saveMessage(userId, username, messageText, 'user');
@@ -57,6 +80,14 @@ class CoordinatorServiceClass {
             from: 'user',
             timestamp: new Date(),
         } as IMessage);
+
+        // Retrieve user's timezone
+        const userTimeZone = await this.db.getUserTimeZone(userId);
+        if (!userTimeZone) {
+            // @ts-ignore
+            await ctx.conversation?.enter('setTimezoneConversation');
+            return;
+        }
 
         // Build conversation history for OpenAI
         const conversationMessages = [
@@ -72,9 +103,7 @@ class CoordinatorServiceClass {
 
         logger.info(`username: ${username}`);
         logger.info(`user message: ${ctx.message.text}`);
-        logger.info(response);
-        // const parseMessage = response.split('------ message content ------')[1].trim();
-        // const parseInternalMessage = response.split('------ internal message ------')?.[1].trim()?.split('------ internal message end ------')?.[0]?.split('\n')?.[0];
+        logger.info(`Assistant response: ${response}`);
 
         if (response) {
             // Save assistant's response to the database
@@ -90,173 +119,61 @@ class CoordinatorServiceClass {
             } as IMessage);
 
             // Parse the assistant's response to extract reminders
-            this.parseAndScheduleReminder(response, userId, chatId);
+            this.parseAndScheduleReminder(response, userId, chatId, userTimeZone);
 
             // Reply to the user with the assistant's message content
             const userMessage = this.extractUserMessage(response);
-            ctx.reply(userMessage);
-            logger.info('------------------------------------------------------------------------------------------------------------------------')
-            logger.info('------------------------------------------------------------------------------------------------------------------------')
-            logger.info('------------------------------------------------------------------------------------------------------------------------')
+            await ctx.reply(userMessage);
+            logger.info('--- Message Processed Successfully ---');
         }
     };
 
-    parseAndScheduleReminder(response: string, userId: number, chatId: number) {
-        // Extract the internal message section
-        const internalMessageMatch = response.match(
-            /------ internal message ------\s*([\s\S]*?)\s*------ internal message end ------/
-        );
+    private async setTimezoneConversation(conversation: Conversation, ctx: Context) {
+        await ctx.reply("Please tell me your location (city or country), and I'll set your timezone.");
 
-        if (internalMessageMatch) {
-            const internalMessage = internalMessageMatch[1].trim();
+        const userInput = await conversation.wait();
 
-            if (internalMessage) {
-                if (internalMessage === 'NONE') {
-                    // No reminder to process
-                    return;
-                } else if (internalMessage.startsWith('CANCEL')) {
-                    // Handle cancellation
-                    // ... existing cancellation code ...
-                } else if (internalMessage.startsWith('UPDATE_REMINDER')) {
-                    // Handle reminder update
-                    const updateMatch = internalMessage.match(
-                        /UPDATE_REMINDER:\s*(.*?),\s*(.*?),\s*(.*)/i
-                    );
-                    if (updateMatch) {
-                        const reminderText = updateMatch[1].trim();
-                        const newTimeToNotifyStr = updateMatch[2].trim();
-                        const newNotificationText = updateMatch[3].trim();
+        const location = userInput.message?.text;
+        if (!location) {
+            await ctx.reply("I didn't understand that. Please provide a valid city or country.");
+            return;
+        }
 
-                        // Validate that all parts are present
-                        if (!reminderText || !newTimeToNotifyStr || !newNotificationText) {
-                            console.error('Reminder update details are incomplete:', {
-                                reminderText,
-                                newTimeToNotifyStr,
-                                newNotificationText,
-                            });
-                            return;
-                        }
+        try {
+            // Process location to get timezone via LLM
+            const { timezone, explanation } = await this.llmMiddleware.processUserInput<string, { timezone: string; explanation: string }>(
+                location,
+                'location_to_timezone'
+            );
 
-                        // Validate the time format
-                        const timeFormatRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                        if (!timeFormatRegex.test(newTimeToNotifyStr)) {
-                            console.error(
-                                'New time to notify does not match the expected format:',
-                                newTimeToNotifyStr
-                            );
-                            return;
-                        }
-
-                        // Parse the new time to notify
-                        const newTimeToNotify = new Date(newTimeToNotifyStr);
-
-                        if (isNaN(newTimeToNotify.getTime())) {
-                            console.error('Invalid new time format in reminder update:', newTimeToNotifyStr);
-                            return;
-                        }
-
-                        // Generate reminderId from reminderText
-                        const reminderId = generateReminderId(reminderText);
-
-                        // Update the reminder in the database
-                        this.db
-                            .updateReminderByReminderId(userId, reminderId, {
-                                timeToNotify: newTimeToNotify,
-                                notificationText: newNotificationText,
-                            })
-                            .then((updatedReminder) => {
-                                if (updatedReminder) {
-                                    // Update the scheduled job
-                                    this.scheduler.updateScheduledReminder(updatedReminder);
-                                    logger.info('Reminder updated:', {
-                                        userId,
-                                        chatId,
-                                        reminderId,
-                                        reminderText,
-                                        newTimeToNotify,
-                                        newNotificationText,
-                                    });
-                                } else {
-                                    console.error(
-                                        `No reminder found to update with reminderId: ${reminderId} for userId: ${userId}`
-                                    );
-                                }
-                            })
-                            .catch((error) => {
-                                console.error('Error updating reminder:', error);
-                            });
-                    } else {
-                        console.error(
-                            'Failed to parse reminder update details from internal message:',
-                            internalMessage
-                        );
-                    }
-                } else {
-                    // Handle new reminder
-                    // Parse the reminder details
-                    const reminderMatch = internalMessage.match(/REMINDER:\s*(.*?),\s*(.*?),\s*(.*)/i);
-                    if (reminderMatch) {
-                        const reminderText = reminderMatch[1].trim();
-                        const timeToNotifyStr = reminderMatch[2].trim();
-                        const notificationText = reminderMatch[3].trim();
-
-                        // Validate that all parts are present
-                        if (!reminderText || !timeToNotifyStr || !notificationText) {
-                            console.error('Reminder details are incomplete:', {
-                                reminderText,
-                                timeToNotifyStr,
-                                notificationText,
-                            });
-                            return;
-                        }
-
-                        // Validate the time format
-                        const timeFormatRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-                        if (!timeFormatRegex.test(timeToNotifyStr)) {
-                            console.error('Time to notify does not match the expected format:', timeToNotifyStr);
-                            return;
-                        }
-
-                        // Parse the time to notify
-                        const timeToNotify = new Date(timeToNotifyStr);
-
-                        if (isNaN(timeToNotify.getTime())) {
-                            console.error('Invalid time format in reminder:', timeToNotifyStr);
-                            return;
-                        }
-
-                        // Generate reminderId from reminderText
-                        const reminderId = generateReminderId(reminderText);
-
-                        // Schedule the reminder
-                        this.scheduler.addReminder({
-                            userId,
-                            chatId,
-                            reminderId,
-                            reminderText,
-                            notificationText,
-                            timeToNotify,
-                        });
-
-                        logger.info('Reminder scheduled:', {
-                            userId,
-                            chatId,
-                            reminderId,
-                            reminderText,
-                            notificationText,
-                            timeToNotify,
-                        });
-                    } else {
-                        console.error('Failed to parse reminder details from internal message:', internalMessage);
-                    }
-                }
+            // Validate timezone using Luxon
+            const isValid = this.llmMiddleware.validateTimezone(timezone);
+            if (!isValid) {
+                await ctx.reply("I couldn't determine a valid timezone from the location provided. Please try again.");
+                return;
             }
-        } else {
-            logger.info('No internal message found in response.');
+
+            // Save timezone to the database
+            await this.db.setUserTimeZone(ctx.from?.id || 0, timezone);
+            logger.info(`Set timezone for user ${ctx.from?.id}: ${timezone} (${explanation})`);
+
+            await ctx.reply(`Great! I've set your timezone to ${timezone}. ${explanation}`);
+
+            // End the conversation
+            await conversation.exit();
+        } catch (error) {
+            logger.error('Error processing location for timezone:', error);
+            await ctx.reply("I'm sorry, I couldn't determine your timezone. Please try again with a more specific location.");
         }
     }
 
-    extractUserMessage(response: string): string {
+    private async parseAndScheduleReminder(response: string, userId: number, chatId: number, userTimeZone: string) {
+        // Implement your reminder parsing and scheduling logic here
+        // This could involve parsing the LLM response for reminder details
+        // and then using the SchedulerService to schedule them
+    }
+
+    private extractUserMessage(response: string): string {
         const messageContentMatch = response.match(/------ message content ------\s*([\s\S]*)/);
         if (messageContentMatch) {
             return messageContentMatch[1].trim();
@@ -264,7 +181,6 @@ class CoordinatorServiceClass {
             return response; // If no specific message content section, return the whole response
         }
     }
-
 
     start = async () => {
         logger.info('Coordinator service started');
