@@ -24,7 +24,7 @@ class SchedulerServiceClass {
 
   // Schedule a reminder
   scheduleReminder(reminder: IReminder) {
-    const date = new Date(reminder.timeToNotify).setHours(new Date().getHours() - 2);
+    const date = new Date(reminder.timeToNotify).setHours(new Date(reminder.timeToNotify).getHours() - 2);
     const job = schedule.scheduleJob(new Date(date), async () => {
       try {
         // Send the reminder message via Telegram
