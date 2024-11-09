@@ -10,14 +10,15 @@ class DBServiceClass {
         userId: number,
         username: string,
         message: string,
-        from: 'user' | 'assistant'
+        from: 'user' | 'assistant',
+        date: any
     ): Promise<void> {
         const newMessage = new MessageModel({
             userId,
             username,
             message,
             from,
-            timestamp: new Date(),
+            timestamp: date,
         });
         await newMessage.save();
     }

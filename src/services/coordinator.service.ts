@@ -48,7 +48,7 @@ class CoordinatorServiceClass {
         const messageText = `The datetime is ${date}. ${ctx.message.text}`;
 
         // Save user's message to the database
-        await this.db.saveMessage(userId, username, messageText, 'user');
+        await this.db.saveMessage(userId, username, messageText, 'user', date);
 
         // Add user's message to cache
         this.messagesCache[userId].messages.push({
@@ -79,7 +79,7 @@ class CoordinatorServiceClass {
 
         if (response) {
             // Save assistant's response to the database
-            await this.db.saveMessage(userId, 'Assistant', response, 'assistant');
+            await this.db.saveMessage(userId, 'Assistant', response, 'assistant', date);
 
             // Add assistant's message to cache
             this.messagesCache[userId].messages.push({

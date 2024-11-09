@@ -61,6 +61,7 @@ export const reminderContext =
     - <notification text> should include the reminder text as well. It should also be written in present tense at the time of the reminder.
       but make sure to specifically include what was asked.
     - <genereted reminder id> is a unique id that you will generate. 
+    - <reminder text> should always be in english
     - If the user asks for a change, use the same id and update the reminder text.
     - If the user asks to cancel the reminder, use the same id and write "CANCEL <reminder text>".
     - If the user asks to change the time or details of an existing reminder, 
