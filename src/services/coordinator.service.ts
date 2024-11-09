@@ -42,7 +42,8 @@ class CoordinatorServiceClass {
             };
         }
 
-        const date = `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+        const utcPlus2 = new Date().setHours(new Date().getHours() + 2);
+        const date = `${new Date(utcPlus2).toLocaleDateString()} ${new Date(utcPlus2).toLocaleTimeString()}`;
 
         const messageText = `The datetime is ${date}. ${ctx.message.text}`;
 
@@ -55,7 +56,7 @@ class CoordinatorServiceClass {
             username,
             message: messageText,
             from: 'user',
-            timestamp: new Date(),
+            timestamp: new Date(date),
         } as IMessage);
 
         // Build conversation history for OpenAI
@@ -86,7 +87,7 @@ class CoordinatorServiceClass {
                 username: 'Assistant',
                 message: response,
                 from: 'assistant',
-                timestamp: new Date(),
+                timestamp: new Date(date),
             } as IMessage);
 
             // Parse the assistant's response to extract reminders
